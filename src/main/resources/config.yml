@@ -60,6 +60,9 @@ group-spacer-text: "%secondary%&m▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬�
 # Une ligne vide "" crée un peu d'espace entre les blocs.
 # Placeholders : %player% %server% %group% %ping% %online% %server_online% %max%
 #                %primary% %secondary% %network_address% %website_address%
+#                + placeholders de grade/faction (%grade%, %grade_prefix%, %grade_suffix%,
+#                   %grade_color%, %faction%, %faction_rank%, %faction_tag%) — la faction
+#                   n'est visible qu'aux joueurs connectés au serveur défini par factions-server-name
 #   %online%        -> total de joueurs sur TOUT le réseau (tous sous-serveurs confondus)
 #   %server_online% -> joueurs uniquement sur le sous-serveur actuel du joueur qui regarde
 # Exemple de ligne animée : "&b&lHeroCraft||&3&lHeroCraft||&9&lHeroCraft"

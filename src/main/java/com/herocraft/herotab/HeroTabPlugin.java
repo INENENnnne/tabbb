@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Plugin(
         id = "herotab",
         name = "HeroTab",
-        version = "1.2.0",
+        version = "1.4.1",
         description = "Tab list unifié et personnalisable pour tout le réseau HeroCraft",
         authors = {"HeroCraft"}
 )
