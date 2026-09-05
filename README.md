@@ -147,7 +147,12 @@ server-groups:
 
 ## 🧩 Nouveautés
 
-### Version 1.2.0 — Tri réel, séparateur de groupe & thème de couleurs
+### Version 1.3.0 — Correctif du driver MySQL (connexions grades/factions fiabilisées)
+- 🐛 **Correctif « No suitable driver found »** : sur Velocity, chaque plugin vit dans son propre classloader isolé— le mécanisme automatique de découverte du driver JDBC (utilisé en interne par `DriverManager` n'arrivait pas toujours à charger `mysql-connector-j` depuis une tâche planifiée du proxy, ce qui cassait les intégrations GradePlugin/FactionPlugin dès que l'on les activait..
+- ⚙️ **Chargement explicite du driver** : nouvelle classe interne `JdbcDriverLoader` qui force le chargement du driver MySQL une fois pour toutes avant toute connexion— le bloc statique du driver s'enregistre alors durablement auprès de `DriverManager`..
+- ✅ **GradeSync & FactionSync sécurisés** : si le driver ne peut toujours pas être chargé, le cache existant est conservé et un avertissement clair est journalisé plutôt qu'une exception silencieuse— plus de spam de stacktrace ni de tab qui se fige..
+
+### Version 1.2.0 — Tri réel, séparateur de groupe& thème de couleurs
 - 🏠 **Ton serveur d'abord** : nouveau mode de tri `SERVER_SELF_FIRST`, activé par défaut— chaque joueur voit d'abord les joueurs de **son** sous-serveur, puis les autres groupés par serveur..
 - ➖ **Séparateur de groupe** : en mode `SERVER_SELF_FIRST`, une ligne décorative (`group-spacer-text`, désactivable avec `group-spacer-enabled`) sépare « ton serveur » des « autres »..
 - 🔀 **Vrai réordonnancement du tab** : le protocole Minecraft n'ayant pas de notion de « position », HeroTab retire puis ré-ajoute les entrées du tab dans l'ordre voulu— en **conservant le skin et le mode de jeu** de chaque joueur (profil original réutilisé)..
