@@ -4,7 +4,7 @@
 
 HeroTab est un plugin pour **Velocity 3.3+** qui remplace le tab (liste de joueurs, header et footer) de **tous** les joueurs connectés au proxy — quel que soit le sous-serveur ou le monde sur lequel ils se trouvent. **Une seule installation sur le proxy suffit** : plus rien à installer ni à configurer sur chaque serveur de jeu. Le résultat est une expérience cohérente et soignée sur tout le réseau..
 
-À partir de la version **1.1.0**, HeroTab sait aussi afficher le **grade** (GradePlugin) et la **faction** (FactionPlugin) de chaque joueur, en lisant directement leurs bases MySQL — sans dépendre des plugins Paper eux-mêmes..
+Le plugin sait aussi afficher le **grade** (GradePlugin) et la **faction** (FactionPlugin) de chaque joueur, en lisant directement leurs bases MySQL — sans dépendre des plugins Paper eux-mêmes..
 
 ---
 
@@ -16,15 +16,19 @@ HeroTab est un plugin pour **Velocity 3.3+** qui remplace le tab (liste de joueu
 
 - 🔄 **Lignes animées** : sépare plusieurs frames d'une ligne avec `||` pour créer une animation en boucle (ex: `"&b&lHeroCraft||&3&lHeroCraft"`). La vitesse se règle dans `config.yml`.
 
-- 🏷️ **Grades intégrés (GradePlugin)** : le nom, préfixe et couleur du grade le plus prioritaire de chaque joueur, lus directement depuis la base `grades_db` (tables `player_grades` + `grades`)— aucune installation supplémentaire sur les serveurs de jeu..
+- 🏷️ **Grades intégrés (GradePlugin)** : le nom, préfixe, suffixe et couleur du grade le plus prioritaire de chaque joueur, lus directement depuis la base `grades_db` (tables `player_grades` + `grades`)— aucune installation supplémentaire sur les serveurs de jeu..
 
 - ⚔️ **Factions intégrées (FactionPlugin)** : le nom et le rang de faction de chaque joueur, avec un tag prêt à l'emploi, lus depuis la table `faction_tab_sync` dans la base `herocraft`..
 
-- 📊 **Placeholders riches** : affiche dans ton tab le nombre de joueurs sur tout le réseau (`%online%`), sur ton sous-serveur actuel (`%server_online%`), ton serveur, ton groupe, ton ping, ton grade, ta faction…
+- 🎨 **Thème de couleurs global** : deux couleurs de décoration (`theme-primary` / `theme-secondary`) réglables dans `config.yml` et réutilisables partout— header, footer, format joueur et séparateur de groupe—via les placeholders `%primary%` et `%secondary%`..
+
+- 🏠 **Ton serveur d'abord** : mode de tri `SERVER_SELF_FIRST`(activé par défaut) qui affiche d'abord les joueurs de ton sous-serveur actuel, puis les autres regroupés par serveur, avec un **séparateur décoratif** entre les deux— un vrai réordonnancement du tab, pas juste un tri cosmétique..
+
+- 📊 **Placeholders riches** : affiche dans ton tab le nombre de joueurs sur tout le réseau (`%online%`), sur ton sous-serveur actuel (`%server_online%`), ton serveur, ton groupe, ton ping, ton grade, ta faction, l'adresse du réseau et du site…
 
 - 🗂️ **Regroupement de sous-serveurs** : affiche un joli nom commun pour tout un groupe de serveurs(ex: `bedwars1`, `bedwars2`, `bedwars3` → `BedWars` grâce à `server-groups`.
 
-- 📋 **Tri des joueurs** : trie la liste des joueurs par ordre alphabétique, par ping, par serveur, ou laisse l'ordre par défaut..
+- 📋 **Tri des joueurs** : trie la liste des joueurs par ordre alphabétique, par ping, par serveur, **ton serveur d'abord + séparateur**, ou laisse l'ordre par défaut..
 
 - ⚡ **Léger et efficace** : mis à jour périodiquement par un scheduler Velocity, avec des compteurs réseau calculés une seule fois par cycle; aucun impact sur les serveurs de jeu..
 
@@ -45,20 +49,36 @@ Tous les réglages se font dans `plugins/herotab/config.yml`. Exemple de base :
 ```yaml
 update-interval-ticks: 20          # intervalle de rafraîchissement(20 =≈ une seconde)
 animation-interval-ticks: 20      # vitesse des lignes animées
-player-format: "&7[&b%server%&7] %grade_prefix%&f%player%%faction_tag%"
-sort-mode: "SERVER"                # ALPHABETICAL, PING, SERVER, NONE
+
+theme-primary: "&b"             # couleur de décoration principale (%primary%)
+theme-secondary: "&e"            # couleur de décoration secondaire (%secondary%)
+network-address: "herocraft.servegame.com"   # IP/domaine affiché dans le footer
+website-address: "herocraft.servegame.com"  # site web affiché dans le footer
+
+player-format: "&7[%primary%%server%&7] %grade_prefix%&f%player%%faction_tag% &8•&7 %ping%ms"
+sort-mode: "SERVER_SELF_FIRST"   # ALPHABETICAL, PING, SERVER, SERVER_SELF_FIRST, NONE
+group-spacer-enabled: true
+group-spacer-text: "%secondary%&m▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
 allow-minimessage: true
 
 header:
-  - "&b&lHeroCraft &7- &fLe réseau"
-  - "&7Réseau : &b%online%&7/&b%max% &8| &7Ici : &b%server_online%"
+  - "%primary%&m                                        "
+  - ""
+  - "%primary%&lHeroCraft %secondary%&l• %primary%Le réseau"
+  - "&7Réseau : %primary%%online%&7/%primary%%max% &8| &7Ici : %secondary%%server_online%"
+  - ""
+  - "%primary%&m                                        "
 
 footer:
-  - "&7www.herocraft.example"
-  - "&7Serveur actuel : &b%server%"
+  - "%secondary%&m                                        "
+  - ""
+  - "&7Serveur : %primary%%network_address%"
+  - "&7Site : %primary%%website_address%"
+  - ""
+  - "%secondary%&m                                        "
 
 # Intégrations MySQL(GradePlugin et FactionPlugin) — à activer si tu veux
-# afficher les grades/factions dans le tab.
+# afficher les grades/factions dans le tab。
 grades-mysql:
   enabled: false
   host: "127.0.0.1"
@@ -82,7 +102,7 @@ server-groups:
   bedwars2: "BedWars"
 ```
 
-> 💡 **Lecture seule** : HeroTab ne modifie jamais ces bases MySQL — il se contente de lire le grade de chaque joueur et la table `faction_tab_sync` (créée par la classe `FactionTabSync` de FactionPlugin).
+> 💡 **Lecture seule** : HeroTab ne modifie jamais ces bases MySQL — il se contente de lire le grade de chaque joueur et la table `faction_tab_sync` (créée par la classe `FactionTabSync` de FactionPlugin.)
 
 >
 
@@ -103,14 +123,18 @@ server-groups:
 | `%faction%` | Nom de la faction du joueur — vide si aucune |
 | `%faction_rank%` | Nom du rang de faction (ex: `Or`)— vide si aucun |
 | `%faction_tag%` | Tag prêt à l'emploi `&7[&e★ Or - MaFaction&7]` — vide si pas de faction |
+| `%primary%` | Couleur de décoration principale (`theme-primary`) |
+| `%secondary%` | Couleur de décoration secondaire (`theme-secondary`) |
 
-**Dans header/footer** — tous les placeholders ci-dessous, plus `%online%`, `%server_online%` et `%max%` :
+**Dans header/footer** — tous les placeholders ci-dessous, plus `%online%`, `%server_online%`, `%max%`, `%network_address%` et `%website_address%` :
 
 | Placeholder | Description |
 |---|---|
 | `%online%` | Nombre total de joueurs sur tout le réseau |
 | `%server_online%` | Nombre de joueurs sur le sous-serveur actuel |
 | `%max%` | Nombre maximal de joueurs autorisé par la config du proxy |
+| `%network_address%` | IP/domaine de connexion au réseau (`network-address`) |
+| `%website_address%` | Adresse du site web (`website-address`) |
 | `%grade%`, `%grade_prefix%`, `%faction%`, `%faction_rank%` | Disponibles aussi dans le header/footer |
 
 ### Commandes
@@ -123,15 +147,23 @@ server-groups:
 
 ## 🧩 Nouveautés
 
+### Version 1.2.0 — Tri réel, séparateur de groupe & thème de couleurs
+- 🏠 **Ton serveur d'abord** : nouveau mode de tri `SERVER_SELF_FIRST`, activé par défaut— chaque joueur voit d'abord les joueurs de **son** sous-serveur, puis les autres groupés par serveur..
+- ➖ **Séparateur de groupe** : en mode `SERVER_SELF_FIRST`, une ligne décorative (`group-spacer-text`, désactivable avec `group-spacer-enabled`) sépare « ton serveur » des « autres »..
+- 🔀 **Vrai réordonnancement du tab** : le protocole Minecraft n'ayant pas de notion de « position », HeroTab retire puis ré-ajoute les entrées du tab dans l'ordre voulu— en **conservant le skin et le mode de jeu** de chaque joueur (profil original réutilisé)..
+- 🎨 **Thème de couleurs global** : nouvelles options `theme-primary` (bleu par défaut) et `theme-secondary` (jaune par défaut), utilisables partout via `%primary%` et `%secondary%`— plus besoin de changer chaque ligne pour recolorer tout le tab..
+- 🌍 **Adresses du réseau dans le footer** : nouveaux placeholders `%network_address%` et `%website_address%`, réglables via `network-address` / `website-address`, avec un footer par défaut remanié..
+- 🧹 **Format joueur par défaut enrichi** : le nom affiché montre désormais le serveur coloré, le préfixe de grade, la faction, et le ping (`&7[&b%server%&7] %grade_prefix%&f%player%%faction_tag% &8•&7 %ping%ms`)..
+- ✨ **Header par défaut redessiné** : lignes décoratives, espacements et placeholders de réseau pour une présentation soignée dès la première installation..
+- 🔧 **Refactor interne** : centralisation du nom de serveur et du remplacement des placeholders de thème— code plus lisible et maintenable..
+
 ### Version 1.1.0 — Intégrations GradePlugin & FactionPlugin
 - 🏷️ **Grades affichés dans le tab** : lecture directe de la base MySQL `grades_db` de GradePlugin(tables `player_grades` + `grades`), avec `%grade%`, `%grade_prefix%`, `%grade_suffix%` et `%grade_color%` dans `player-format`..
 - ⚔️ **Factions affichées dans le tab** : lecture de la table `faction_tab_sync` de FactionPlugin(base `herocraft`), avec `%faction%`, `%faction_rank%` et le tag prêt à l'emploi `%faction_tag%`..
 - 📦 **Driver MySQL embarqué** : `mysql-connector-j` est inclus et shadé dans le `.jar` — aucune dépendance à installer sur le proxy..
 - ⚙️ **Configuration enrichie** : nouvelles sections `grades-mysql` et `factions-mysql`(activation, identifiants, intervalle de rechargement) dans `config.yml`..
-- 🔄 **Synchronisation périodique** : les caches grades/factions sont rechargés automatiquement (par défaut toutes les 15 secondes, réglable) sans redémarrer le proxy..
-- 🧹 **Classe `FactionTabSync` déplacée** : le code de synchronisation des factions vit désormais dans FactionPlugin, HeroTab se contente de lire la table partagée.
-
-
+- 🔄 **Synchronisation périodique** : les caches grades/factions sont rechargés automatiquement(par défaut toutes les15 secondes, réglable) sans redémarrer le proxy..
+- 🧹 **Classe `FactionTabSync` déplacée** : le code de synchronisation des factions vit désormais dans FactionPlugin, HeroTab se contente de lire la table partagée..
 
 ### Version 1.0.1 — Correctifs et publication des artefacts
 - Publication de la release avec le **.jar compilé** et le **code source** attachés directement au dépôt..
