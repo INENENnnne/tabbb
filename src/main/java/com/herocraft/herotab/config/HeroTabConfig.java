@@ -74,6 +74,14 @@ public class HeroTabConfig {
     /** Adresse du site web, personnalisable, placeholder %website_address%. */
     public String websiteAddress = "herocraft.servegame.com";
 
+    /**
+     * Nom (id backend) du serveur Factions. Les placeholders %faction%,
+     * %faction_rank% et %faction_tag% ne sont remplis QUE si le joueur qui
+     * regarde le tab est lui-même connecté à ce serveur — ailleurs sur le
+     * réseau, ils restent vides pour tout le monde.
+     */
+    public String factionsServerName = "factions";
+
     /** Connexion à la base "grades_db" de GradePlugin (table player_grades + grades). */
     public MySQLTarget gradesMysql = new MySQLTarget();
 
@@ -135,6 +143,7 @@ public class HeroTabConfig {
         if (raw.get("theme-secondary") instanceof String s) c.themeSecondary = s;
         if (raw.get("network-address") instanceof String s) c.networkAddress = s;
         if (raw.get("website-address") instanceof String s) c.websiteAddress = s;
+        if (raw.get("factions-server-name") instanceof String s) c.factionsServerName = s;
 
         if (raw.get("grades-mysql") != null) c.gradesMysql = MySQLTarget.fromMap(raw.get("grades-mysql"));
         if (raw.get("factions-mysql") != null) c.factionsMysql = MySQLTarget.fromMap(raw.get("factions-mysql"));
