@@ -1,0 +1,51 @@
+# ==========================================================
+#  HeroTab - configuration
+#  Ce plugin tourne sur le proxy Velocity : le tab qu'il
+#  affiche est donc le même quel que soit le sous-serveur
+#  Paper / le monde sur lequel se trouve chaque joueur.
+#
+#  Codes couleur : & classiques (&b, &7, &l...) + hex &#RRGGBB
+#  Si allow-minimessage: true, tu peux aussi écrire une ligne
+#  avec des balises MiniMessage, ex: "<gradient:#00c6ff:#0072ff>HeroCraft</gradient>"
+#  (ne mélange pas & et <tags> sur la même ligne)
+# ==========================================================
+
+# Intervalle entre deux rafraîchissements complets du tab (en ticks, 20 = 1 seconde)
+update-interval-ticks: 20
+
+# Vitesse de l'animation pour les lignes qui contiennent plusieurs frames séparées par '||'
+animation-interval-ticks: 20
+
+# Format du nom affiché pour CHAQUE joueur dans la liste des joueurs
+# Placeholders : %player% %server% %group% %ping%
+player-format: "&7[&b%server%&7] &f%player%"
+
+# Ordre d'affichage des joueurs : ALPHABETICAL, PING, SERVER, NONE
+sort-mode: "SERVER"
+
+# En-tête du tab (une ligne = un élément de la liste, plusieurs lignes possibles)
+# Placeholders : %player% %server% %group% %ping% %online% %server_online% %max%
+#   %online%        -> total de joueurs sur TOUT le réseau (tous sous-serveurs confondus)
+#   %server_online% -> joueurs uniquement sur le sous-serveur actuel du joueur qui regarde
+# Exemple de ligne animée : "&b&lHeroCraft||&3&lHeroCraft||&9&lHeroCraft"
+header:
+  - "&b&lHeroCraft &7- &fLe réseau"
+  - "&7Réseau : &b%online%&7/&b%max% &8| &7Ici : &b%server_online%"
+
+# Pied de page du tab
+footer:
+  - "&7www.herocraft.example"
+  - "&7Serveur actuel : &b%server%"
+
+# Autorise les balises MiniMessage (<red>, <bold>, <gradient:...>...) sur les lignes qui en contiennent
+allow-minimessage: true
+
+# Regroupe plusieurs sous-serveurs sous un même nom affiché (utile pour %group%)
+# ex: si tu as bedwars1, bedwars2, bedwars3 -> tous affichés "BedWars"
+server-groups:
+  bedwars1: "BedWars"
+  bedwars2: "BedWars"
+  bedwars3: "BedWars"
+  hikabrain: "HikaBrain"
+  hungergames: "HungerGames"
+  factions: "Factions"

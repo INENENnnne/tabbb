@@ -1,0 +1,103 @@
+package com.herocraft.herotab;
+
+import com.google.inject.Inject;
+import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
+import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.plugin.annotation.DataDirectory;
+import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.scheduler.ScheduledTask;
+import com.herocraft.herotab.command.HeroTabCommand;
+import com.herocraft.herotab.config.ConfigManager;
+import org.slf4j.Logger;
+
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+
+@Plugin(
+        id = "herotab",
+        name = "HeroTab",
+        version = "1.0.0",
+        description = "Tab list unifié et personnalisable pour tout le réseau HeroCraft",
+        authors = {"HeroCraft"}
+)
+public class HeroTabPlugin {
+
+    private final ProxyServer server;
+    private final Logger logger;
+    private final Path dataDirectory;
+
+    private ConfigManager configManager;
+    private TabListManager tabListManager;
+    private ScheduledTask updateTask;
+
+    @Inject
+    public HeroTabPlugin(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
+        this.server = server;
+        this.logger = logger;
+        this.dataDirectory = dataDirectory;
+    }
+
+    @Subscribe
+    public void onProxyInitialize(ProxyInitializeEvent event) {
+        this.configManager = new ConfigManager(this, dataDirectory, logger);
+        this.configManager.load();
+
+        this.tabListManager = new TabListManager(this, server, configManager, logger);
+
+        server.getCommandManager().register(
+                server.getCommandManager().metaBuilder("herotab").aliases("htab").build(),
+                new HeroTabCommand(this)
+        );
+
+        server.getEventManager().register(this, tabListManager);
+
+        startUpdateTask();
+
+        logger.info("HeroTab activé — {} joueurs actuellement en ligne.", server.getPlayerCount());
+    }
+
+    @Subscribe
+    public void onProxyShutdown(ProxyShutdownEvent event) {
+        if (updateTask != null) {
+            updateTask.cancel();
+        }
+    }
+
+    public void startUpdateTask() {
+        if (updateTask != null) {
+            updateTask.cancel();
+        }
+        long intervalTicks = configManager.getConfig().updateIntervalTicks;
+        // Velocity n'a pas de "ticks" proxy-side ; on convertit en secondes (20 ticks = 1s), minimum 200ms.
+        long millis = Math.max(200L, (intervalTicks * 50L));
+        updateTask = server.getScheduler()
+                .buildTask(this, tabListManager::updateAll)
+                .repeat(millis, TimeUnit.MILLISECONDS)
+                .schedule();
+    }
+
+    public void reload() {
+        configManager.load();
+        tabListManager.reloadAnimationState();
+        startUpdateTask();
+        tabListManager.updateAll();
+    }
+
+    public ProxyServer getServer() {
+        return server;
+    }
+
+    public Logger getLogger() {
+        return logger;
+    }
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public TabListManager getTabListManager() {
+        return tabListManager;
+    }
+}
