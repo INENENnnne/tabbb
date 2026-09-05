@@ -40,6 +40,46 @@ public class HeroTabConfig {
     /** Si vrai, MiniMessage (&lt;red&gt;, &lt;bold&gt;...) est accepté en plus des codes &. */
     public boolean allowMiniMessage = true;
 
+    /** Connexion à la base "grades_db" de GradePlugin (table player_grades + grades). */
+    public MySQLTarget gradesMysql = new MySQLTarget();
+
+    /** Connexion à la base "herocraft" de FactionPlugin (table faction_tab_sync). */
+    public MySQLTarget factionsMysql = new MySQLTarget();
+
+    /**
+     * Un bloc de connexion MySQL en lecture seule, utilisé pour récupérer les
+     * grades et/ou factions déjà stockés par les plugins Paper correspondants.
+     */
+    public static class MySQLTarget {
+        public boolean enabled = false;
+        public String host = "127.0.0.1";
+        public int port = 3306;
+        public String database = "";
+        public String user = "";
+        public String password = "";
+        /** Intervalle entre deux rechargements complets depuis MySQL, en secondes. */
+        public int refreshIntervalSeconds = 15;
+
+        public String jdbcUrl() {
+            return "jdbc:mysql://" + host + ":" + port + "/" + database
+                    + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8";
+        }
+
+        @SuppressWarnings("unchecked")
+        static MySQLTarget fromMap(Object raw) {
+            MySQLTarget t = new MySQLTarget();
+            if (!(raw instanceof Map<?, ?> m)) return t;
+            if (m.get("enabled") instanceof Boolean b) t.enabled = b;
+            if (m.get("host") instanceof String s) t.host = s;
+            if (m.get("port") instanceof Number n) t.port = n.intValue();
+            if (m.get("database") instanceof String s) t.database = s;
+            if (m.get("user") instanceof String s) t.user = s;
+            if (m.get("password") instanceof String s) t.password = s;
+            if (m.get("refresh-interval-seconds") instanceof Number n) t.refreshIntervalSeconds = n.intValue();
+            return t;
+        }
+    }
+
     public static HeroTabConfig defaults() {
         return new HeroTabConfig();
     }
@@ -55,6 +95,9 @@ public class HeroTabConfig {
         if (raw.get("animation-interval-ticks") instanceof Number n) c.animationIntervalTicks = n.longValue();
         if (raw.get("sort-mode") instanceof String s) c.sortMode = s.toUpperCase();
         if (raw.get("allow-minimessage") instanceof Boolean b) c.allowMiniMessage = b;
+
+        if (raw.get("grades-mysql") != null) c.gradesMysql = MySQLTarget.fromMap(raw.get("grades-mysql"));
+        if (raw.get("factions-mysql") != null) c.factionsMysql = MySQLTarget.fromMap(raw.get("factions-mysql"));
 
         Object groups = raw.get("server-groups");
         if (groups instanceof Map<?, ?> gm) {

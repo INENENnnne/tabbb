@@ -10,6 +10,8 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.scheduler.ScheduledTask;
 import com.herocraft.herotab.command.HeroTabCommand;
 import com.herocraft.herotab.config.ConfigManager;
+import com.herocraft.herotab.integration.FactionSync;
+import com.herocraft.herotab.integration.GradeSync;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
@@ -18,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Plugin(
         id = "herotab",
         name = "HeroTab",
-        version = "1.0.1",
+        version = "1.1.0",
         description = "Tab list unifié et personnalisable pour tout le réseau HeroCraft",
         authors = {"HeroCraft"}
 )
@@ -32,6 +34,11 @@ public class HeroTabPlugin {
     private TabListManager tabListManager;
     private ScheduledTask updateTask;
 
+    private GradeSync gradeSync;
+    private FactionSync factionSync;
+    private ScheduledTask gradeSyncTask;
+    private ScheduledTask factionSyncTask;
+
     @Inject
     public HeroTabPlugin(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
         this.server = server;
@@ -44,7 +51,9 @@ public class HeroTabPlugin {
         this.configManager = new ConfigManager(this, dataDirectory, logger);
         this.configManager.load();
 
-        this.tabListManager = new TabListManager(this, server, configManager, logger);
+        setupIntegrations();
+
+        this.tabListManager = new TabListManager(this, server, configManager, logger, gradeSync, factionSync);
 
         server.getCommandManager().register(
                 server.getCommandManager().metaBuilder("herotab").aliases("htab").build(),
@@ -60,8 +69,31 @@ public class HeroTabPlugin {
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
-        if (updateTask != null) {
-            updateTask.cancel();
+        if (updateTask != null) updateTask.cancel();
+        if (gradeSyncTask != null) gradeSyncTask.cancel();
+        if (factionSyncTask != null) factionSyncTask.cancel();
+    }
+
+    private void setupIntegrations() {
+        this.gradeSync = new GradeSync(configManager.getConfig().gradesMysql, logger);
+        this.factionSync = new FactionSync(configManager.getConfig().factionsMysql, logger);
+
+        if (gradeSync.isEnabled()) {
+            gradeSync.refresh();
+            gradeSyncTask = server.getScheduler()
+                    .buildTask(this, gradeSync::refresh)
+                    .repeat(Math.max(5, gradeSync.getRefreshIntervalSeconds()), TimeUnit.SECONDS)
+                    .schedule();
+            logger.info("HeroTab : synchronisation des grades (GradePlugin) activée.");
+        }
+
+        if (factionSync.isEnabled()) {
+            factionSync.refresh();
+            factionSyncTask = server.getScheduler()
+                    .buildTask(this, factionSync::refresh)
+                    .repeat(Math.max(5, factionSync.getRefreshIntervalSeconds()), TimeUnit.SECONDS)
+                    .schedule();
+            logger.info("HeroTab : synchronisation des factions (FactionPlugin) activée.");
         }
     }
 
@@ -80,6 +112,12 @@ public class HeroTabPlugin {
 
     public void reload() {
         configManager.load();
+
+        if (gradeSyncTask != null) gradeSyncTask.cancel();
+        if (factionSyncTask != null) factionSyncTask.cancel();
+        setupIntegrations();
+        tabListManager.setIntegrations(gradeSync, factionSync);
+
         tabListManager.reloadAnimationState();
         startUpdateTask();
         tabListManager.updateAll();

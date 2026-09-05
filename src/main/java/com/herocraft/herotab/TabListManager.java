@@ -2,6 +2,10 @@ package com.herocraft.herotab;
 
 import com.herocraft.herotab.config.ConfigManager;
 import com.herocraft.herotab.config.HeroTabConfig;
+import com.herocraft.herotab.integration.FactionInfo;
+import com.herocraft.herotab.integration.FactionSync;
+import com.herocraft.herotab.integration.GradeInfo;
+import com.herocraft.herotab.integration.GradeSync;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.player.ServerConnectedEvent;
@@ -25,6 +29,9 @@ import java.util.Map;
  * Construit et pousse le header/footer + les noms affichés dans le tab pour
  * chaque joueur connecté au proxy, quel que soit le sous-serveur/monde sur
  * lequel il se trouve. Le tab est donc unifié sur tout le réseau HeroCraft.
+ *
+ * Les grades (GradePlugin) et factions (FactionPlugin) sont lus directement
+ * depuis MySQL via GradeSync / FactionSync — voir com.herocraft.herotab.integration.
  */
 public class TabListManager {
 
@@ -33,17 +40,29 @@ public class TabListManager {
     private final ConfigManager configManager;
     private final Logger logger;
 
+    private volatile GradeSync gradeSync;
+    private volatile FactionSync factionSync;
+
     private final LegacyComponentSerializer legacy = LegacyComponentSerializer.builder()
             .character('&')
             .hexColors()
             .build();
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
-    public TabListManager(HeroTabPlugin plugin, ProxyServer server, ConfigManager configManager, Logger logger) {
+    public TabListManager(HeroTabPlugin plugin, ProxyServer server, ConfigManager configManager, Logger logger,
+                           GradeSync gradeSync, FactionSync factionSync) {
         this.plugin = plugin;
         this.server = server;
         this.configManager = configManager;
         this.logger = logger;
+        this.gradeSync = gradeSync;
+        this.factionSync = factionSync;
+    }
+
+    /** Permet à /herotab reload de brancher de nouvelles instances (nouvelle config MySQL) sans recréer le manager. */
+    public void setIntegrations(GradeSync gradeSync, FactionSync factionSync) {
+        this.gradeSync = gradeSync;
+        this.factionSync = factionSync;
     }
 
     public void reloadAnimationState() {
@@ -125,14 +144,34 @@ public class TabListManager {
             String group = cfg.serverGroups.getOrDefault(serverName, serverName);
             long ping = target.getPing();
 
+            GradeInfo grade = gradeSync != null ? gradeSync.get(target.getUniqueId()) : null;
+            FactionInfo faction = factionSync != null ? factionSync.get(target.getUniqueId()) : null;
+
             String formatted = cfg.playerFormat
                     .replace("%player%", target.getUsername())
                     .replace("%server%", serverName)
                     .replace("%group%", group)
-                    .replace("%ping%", String.valueOf(Math.max(0, ping)));
+                    .replace("%ping%", String.valueOf(Math.max(0, ping)))
+                    .replace("%grade%", grade != null && grade.displayName() != null ? grade.displayName() : "")
+                    .replace("%grade_prefix%", grade != null && grade.prefix() != null ? grade.prefix() : "")
+                    .replace("%grade_suffix%", grade != null && grade.suffix() != null ? grade.suffix() : "")
+                    .replace("%grade_color%", grade != null && grade.color() != null ? grade.color() : "&f")
+                    .replace("%faction%", faction != null ? faction.factionName() : "")
+                    .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "")
+                    .replace("%faction_tag%", buildFactionTag(faction));
 
             entry.setDisplayName(parse(formatted, cfg));
         }
+    }
+
+    /** Construit un petit tag lisible du type " &7[&e★ Or - MaFaction]" — vide si le joueur n'a pas de faction. */
+    private String buildFactionTag(FactionInfo faction) {
+        if (faction == null || faction.factionName() == null || faction.factionName().isBlank()) {
+            return "";
+        }
+        String color = faction.rankColor() != null && !faction.rankColor().isBlank() ? faction.rankColor() : "&7";
+        String icon = faction.rankIcon() != null ? faction.rankIcon() + " " : "";
+        return " &7[" + color + icon + faction.factionName() + "&7]";
     }
 
     private void applySort(List<Player> players, String sortMode) {
@@ -154,6 +193,10 @@ public class TabListManager {
         String serverName = viewer.getCurrentServer().map(sc -> sc.getServerInfo().getName()).orElse("?");
         String group = cfg.serverGroups.getOrDefault(serverName, serverName);
         int serverOnline = countsByServer.getOrDefault(serverName, 0);
+
+        GradeInfo grade = gradeSync != null ? gradeSync.get(viewer.getUniqueId()) : null;
+        FactionInfo faction = factionSync != null ? factionSync.get(viewer.getUniqueId()) : null;
+
         return text
                 .replace("%player%", viewer.getUsername())
                 .replace("%server%", serverName)
@@ -163,7 +206,11 @@ public class TabListManager {
                 .replace("%online%", String.valueOf(totalOnline))
                 .replace("%max%", String.valueOf(server.getConfiguration().getShowMaxPlayers()))
                 // %server_online% = uniquement les joueurs sur le sous-serveur actuel du viewer
-                .replace("%server_online%", String.valueOf(serverOnline));
+                .replace("%server_online%", String.valueOf(serverOnline))
+                .replace("%grade%", grade != null && grade.displayName() != null ? grade.displayName() : "")
+                .replace("%grade_prefix%", grade != null && grade.prefix() != null ? grade.prefix() : "")
+                .replace("%faction%", faction != null ? faction.factionName() : "")
+                .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "");
     }
 
     private Component parse(String text, HeroTabConfig cfg) {
