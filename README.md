@@ -1,5 +1,7 @@
 # 🎮 HeroTab
 
+> **Version actuelle : 1.3.0** — correctif du driver MySQL pour des intégrations GradePlugin / FactionPlugin fiabilisées. [Voir les nouveautés](#-nouveautés) · [Télécharger la release](https://github.com/INENENnnne/tabbb/releases/latest)
+
 **Tab list unifié et personnalisable pour tout le réseau HeroCraft (proxy Velocity.)**
 
 HeroTab est un plugin pour **Velocity 3.3+** qui remplace le tab (liste de joueurs, header et footer) de **tous** les joueurs connectés au proxy — quel que soit le sous-serveur ou le monde sur lequel ils se trouvent. **Une seule installation sur le proxy suffit** : plus rien à installer ni à configurer sur chaque serveur de jeu. Le résultat est une expérience cohérente et soignée sur tout le réseau..
