@@ -10,26 +10,50 @@ public class HeroTabConfig {
     /** Nombre de ticks (20 = 1s) entre deux rafraîchissements du tab. */
     public long updateIntervalTicks = 20;
 
-    /** Format d'un slot pour un joueur donné. Placeholders : %player% %server% %ping% %group% */
-    public String playerFormat = "&7[&b%server%&7] &f%player%";
+    /**
+     * Format d'un slot pour un joueur donné.
+     * Placeholders : %player% %server% %ping% %group% %grade% %grade_prefix% %faction% %faction_rank%
+     *                %faction_tag% %primary% %secondary%
+     */
+    public String playerFormat = "&7[%primary%%server%&7] %grade_prefix%&f%player%%faction_tag% &8•&7 %ping%ms";
 
     /** Lignes d'en-tête, une par ligne. Chaque ligne peut avoir plusieurs frames séparées par '||' pour l'animation. */
     public List<String> header = new ArrayList<>(List.of(
-            "&b&lHeroCraft &7- &fLe réseau",
-            "&7En ligne : &b%online%&7/&b%max%"
+            "%primary%&m                                        ",
+            "",
+            "%primary%&lHeroCraft %secondary%&l• %primary%Le réseau",
+            "&7Réseau : %primary%%online%&7/%primary%%max% &8| &7Ici : %secondary%%server_online%",
+            "",
+            "%primary%&m                                        "
     ));
 
     /** Lignes de pied de page. */
     public List<String> footer = new ArrayList<>(List.of(
-            "&7www.herocraft.example",
-            "&7Serveur actuel : &b%server%"
+            "%secondary%&m                                        ",
+            "",
+            "&7Serveur : %primary%%network_address%",
+            "&7Site : %primary%%website_address%",
+            "",
+            "%secondary%&m                                        "
     ));
 
     /** Vitesse d'animation du header/footer si plusieurs frames sont fournies avec '||'. */
     public long animationIntervalTicks = 20;
 
-    /** Tri des joueurs dans la liste : ALPHABETICAL, PING, SERVER, NONE. */
-    public String sortMode = "SERVER";
+    /**
+     * Tri des joueurs dans la liste :
+     *   ALPHABETICAL, PING, SERVER, NONE,
+     *   SERVER_SELF_FIRST — les joueurs de TON sous-serveur actuel d'abord, puis les autres
+     *                        (groupés par serveur), avec un séparateur décoratif entre les deux
+     *                        si group-spacer-enabled est activé.
+     */
+    public String sortMode = "SERVER_SELF_FIRST";
+
+    /** Insère une ligne décorative entre "ton serveur" et "les autres joueurs" en mode SERVER_SELF_FIRST. */
+    public boolean groupSpacerEnabled = true;
+
+    /** Texte de cette ligne décorative. Placeholders de thème acceptés (%primary% %secondary%). */
+    public String groupSpacerText = "%secondary%&m▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
     /**
      * Regroupement optionnel de sous-serveurs sous un même nom affiché.
@@ -39,6 +63,16 @@ public class HeroTabConfig {
 
     /** Si vrai, MiniMessage (&lt;red&gt;, &lt;bold&gt;...) est accepté en plus des codes &. */
     public boolean allowMiniMessage = true;
+
+    /** Couleurs de décoration personnalisables, utilisables partout via %primary% / %secondary%. */
+    public String themePrimary = "&b";   // bleu par défaut
+    public String themeSecondary = "&e"; // jaune par défaut
+
+    /** Adresse de connexion au réseau (IP/domaine), personnalisable, placeholder %network_address%. */
+    public String networkAddress = "herocraft.servegame.com";
+
+    /** Adresse du site web, personnalisable, placeholder %website_address%. */
+    public String websiteAddress = "herocraft.servegame.com";
 
     /** Connexion à la base "grades_db" de GradePlugin (table player_grades + grades). */
     public MySQLTarget gradesMysql = new MySQLTarget();
@@ -94,7 +128,13 @@ public class HeroTabConfig {
         if (raw.get("footer") instanceof List<?> l) c.footer = toStringList(l);
         if (raw.get("animation-interval-ticks") instanceof Number n) c.animationIntervalTicks = n.longValue();
         if (raw.get("sort-mode") instanceof String s) c.sortMode = s.toUpperCase();
+        if (raw.get("group-spacer-enabled") instanceof Boolean b) c.groupSpacerEnabled = b;
+        if (raw.get("group-spacer-text") instanceof String s) c.groupSpacerText = s;
         if (raw.get("allow-minimessage") instanceof Boolean b) c.allowMiniMessage = b;
+        if (raw.get("theme-primary") instanceof String s) c.themePrimary = s;
+        if (raw.get("theme-secondary") instanceof String s) c.themeSecondary = s;
+        if (raw.get("network-address") instanceof String s) c.networkAddress = s;
+        if (raw.get("website-address") instanceof String s) c.websiteAddress = s;
 
         if (raw.get("grades-mysql") != null) c.gradesMysql = MySQLTarget.fromMap(raw.get("grades-mysql"));
         if (raw.get("factions-mysql") != null) c.factionsMysql = MySQLTarget.fromMap(raw.get("factions-mysql"));

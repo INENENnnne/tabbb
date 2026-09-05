@@ -13,27 +13,39 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.player.TabList;
 import com.velocitypowered.api.proxy.player.TabListEntry;
+import com.velocitypowered.api.util.GameProfile;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.slf4j.Logger;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * Construit et pousse le header/footer + les noms affichés dans le tab pour
- * chaque joueur connecté au proxy, quel que soit le sous-serveur/monde sur
- * lequel il se trouve. Le tab est donc unifié sur tout le réseau HeroCraft.
+ * Construit et pousse le header/footer + les noms/l'ordre affichés dans le
+ * tab pour chaque joueur connecté au proxy, quel que soit le sous-serveur/
+ * monde sur lequel il se trouve. Le tab est donc unifié sur tout le réseau.
  *
  * Les grades (GradePlugin) et factions (FactionPlugin) sont lus directement
  * depuis MySQL via GradeSync / FactionSync — voir com.herocraft.herotab.integration.
+ *
+ * Réordonnancement : le protocole Minecraft n'a pas de notion de "position"
+ * sur une entrée existante — pour vraiment changer l'ordre affiché, il faut
+ * retirer puis ré-ajouter les entrées dans l'ordre voulu (Velocity respecte
+ * alors l'ordre d'insertion). On récupère le profil/gamemode d'origine avant
+ * de retirer une entrée pour ne pas perdre son skin dans le tab.
  */
 public class TabListManager {
+
+    private static final UUID SPACER_UUID = UUID.nameUUIDFromBytes("herotab:group-spacer".getBytes(StandardCharsets.UTF_8));
+    private static final GameProfile SPACER_PROFILE = new GameProfile(SPACER_UUID, "herotab_spacer", List.of());
 
     private final HeroTabPlugin plugin;
     private final ProxyServer server;
@@ -91,8 +103,7 @@ public class TabListManager {
         // pour alimenter %server_online% sans reparcourir la liste pour chaque viewer.
         Map<String, Integer> countsByServer = new HashMap<>();
         for (Player p : online) {
-            String name = p.getCurrentServer().map(sc -> sc.getServerInfo().getName()).orElse("?");
-            countsByServer.merge(name, 1, Integer::sum);
+            countsByServer.merge(serverNameOf(p), 1, Integer::sum);
         }
 
         for (Player viewer : online) {
@@ -100,6 +111,8 @@ public class TabListManager {
             updateEntries(viewer, cfg, online);
         }
     }
+
+    // ── Header / footer ─────────────────────────────────────────────────────────
 
     private void updateHeaderFooter(Player viewer, HeroTabConfig cfg, int totalOnline, Map<String, Integer> countsByServer) {
         Component header = joinLines(cfg.header, viewer, cfg, totalOnline, countsByServer);
@@ -130,41 +143,88 @@ public class TabListManager {
         return frames[index].trim();
     }
 
+    // ── Entrées joueurs (ordre + texte) ─────────────────────────────────────────
+
     private void updateEntries(Player viewer, HeroTabConfig cfg, List<Player> online) {
         TabList tabList = viewer.getTabList();
 
-        List<Player> sorted = new ArrayList<>(online);
-        applySort(sorted, cfg.sortMode);
+        // On garde le profil/gamemode d'origine de chaque entrée (skin, icône de mode de jeu)
+        // pour ne rien perdre visuellement en les recréant dans le bon ordre.
+        Map<UUID, TabListEntry> existing = new HashMap<>();
+        for (TabListEntry e : tabList.getEntries()) {
+            existing.put(e.getProfile().getId(), e);
+        }
 
-        for (Player target : sorted) {
-            TabListEntry entry = tabList.getEntry(target.getUniqueId()).orElse(null);
-            if (entry == null) continue; // Velocity ajoute/retire déjà les entrées de base à la connexion/déconnexion.
+        List<Player> ordered = buildOrder(viewer, online, cfg);
+        int spacerAfterIndex = shouldInsertSpacer(viewer, ordered, cfg) ? computeSpacerIndex(viewer, ordered) : -1;
 
-            String serverName = target.getCurrentServer().map(sc -> sc.getServerInfo().getName()).orElse("?");
-            String group = cfg.serverGroups.getOrDefault(serverName, serverName);
-            long ping = target.getPing();
+        // On retire d'abord tout ce qu'on gère, pour pouvoir tout ré-ajouter dans le bon ordre.
+        for (Player target : online) {
+            tabList.removeEntry(target.getUniqueId());
+        }
+        tabList.removeEntry(SPACER_UUID);
 
-            GradeInfo grade = gradeSync != null ? gradeSync.get(target.getUniqueId()) : null;
-            FactionInfo faction = factionSync != null ? factionSync.get(target.getUniqueId()) : null;
+        for (int i = 0; i < ordered.size(); i++) {
+            Player target = ordered.get(i);
+            TabListEntry old = existing.get(target.getUniqueId());
+            int gameMode = old != null ? old.getGameMode() : 0;
+            GameProfile profile = old != null ? old.getProfile() : new GameProfile(target.getUniqueId(), target.getUsername(), List.of());
 
-            String formatted = cfg.playerFormat
-                    .replace("%player%", target.getUsername())
-                    .replace("%server%", serverName)
-                    .replace("%group%", group)
-                    .replace("%ping%", String.valueOf(Math.max(0, ping)))
-                    .replace("%grade%", grade != null && grade.displayName() != null ? grade.displayName() : "")
-                    .replace("%grade_prefix%", grade != null && grade.prefix() != null ? grade.prefix() : "")
-                    .replace("%grade_suffix%", grade != null && grade.suffix() != null ? grade.suffix() : "")
-                    .replace("%grade_color%", grade != null && grade.color() != null ? grade.color() : "&f")
-                    .replace("%faction%", faction != null ? faction.factionName() : "")
-                    .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "")
-                    .replace("%faction_tag%", buildFactionTag(faction));
+            Component displayName = parse(formatPlayerEntry(target, cfg), cfg);
 
-            entry.setDisplayName(parse(formatted, cfg));
+            try {
+                tabList.addEntry(TabListEntry.builder()
+                        .tabList(tabList)
+                        .profile(profile)
+                        .displayName(displayName)
+                        .latency((int) Math.max(0, target.getPing()))
+                        .gameMode(gameMode)
+                        .build());
+            } catch (Exception ex) {
+                logger.warn("Impossible d'ajouter l'entrée tab de {} : {}", target.getUsername(), ex.getMessage());
+            }
+
+            if (i == spacerAfterIndex) {
+                try {
+                    tabList.addEntry(TabListEntry.builder()
+                            .tabList(tabList)
+                            .profile(SPACER_PROFILE)
+                            .displayName(parse(replaceTheme(cfg.groupSpacerText, cfg), cfg))
+                            .latency(0)
+                            .gameMode(0)
+                            .build());
+                } catch (Exception ex) {
+                    logger.warn("Impossible d'ajouter le séparateur de groupe : {}", ex.getMessage());
+                }
+            }
         }
     }
 
-    /** Construit un petit tag lisible du type " &7[&e★ Or - MaFaction]" — vide si le joueur n'a pas de faction. */
+    private String formatPlayerEntry(Player target, HeroTabConfig cfg) {
+        String serverName = serverNameOf(target);
+        String group = cfg.serverGroups.getOrDefault(serverName, serverName);
+        long ping = target.getPing();
+
+        GradeInfo grade = gradeSync != null ? gradeSync.get(target.getUniqueId()) : null;
+        FactionInfo faction = factionSync != null ? factionSync.get(target.getUniqueId()) : null;
+
+        String text = cfg.playerFormat
+                .replace("%player%", target.getUsername())
+                .replace("%server%", serverName)
+                .replace("%group%", group)
+                .replace("%ping%", String.valueOf(Math.max(0, ping)))
+                .replace("%grade%", grade != null && grade.displayName() != null ? grade.displayName() : "")
+                .replace("%grade_prefix%", grade != null && grade.prefix() != null ? grade.prefix() : "")
+                .replace("%grade_suffix%", grade != null && grade.suffix() != null ? grade.suffix() : "")
+                .replace("%grade_color%", grade != null && grade.color() != null ? grade.color() : "&f")
+                .replace("%faction%", faction != null ? faction.factionName() : "")
+                .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "")
+                .replace("%faction_tag%", buildFactionTag(faction));
+
+        return replaceTheme(text, cfg);
+    }
+
+    /** Construit un petit tag lisible du type " [★ Or - MaFaction]" — vide si le joueur n'a pas de faction. */
     private String buildFactionTag(FactionInfo faction) {
         if (faction == null || faction.factionName() == null || faction.factionName().isBlank()) {
             return "";
@@ -174,30 +234,71 @@ public class TabListManager {
         return " &7[" + color + icon + faction.factionName() + "&7]";
     }
 
-    private void applySort(List<Player> players, String sortMode) {
-        Comparator<Player> comparator = switch (sortMode.toUpperCase(Locale.ROOT)) {
+    // ── Ordre d'affichage ────────────────────────────────────────────────────────
+
+    private List<Player> buildOrder(Player viewer, List<Player> online, HeroTabConfig cfg) {
+        List<Player> list = new ArrayList<>(online);
+        String mode = cfg.sortMode.toUpperCase(Locale.ROOT);
+
+        if (mode.equals("SERVER_SELF_FIRST")) {
+            String viewerServer = serverNameOf(viewer);
+            list.sort(
+                    Comparator.<Player>comparingInt(p -> serverNameOf(p).equalsIgnoreCase(viewerServer) ? 0 : 1)
+                            .thenComparing(TabListManager::serverNameOf, String.CASE_INSENSITIVE_ORDER)
+                            .thenComparing(Player::getUsername, String.CASE_INSENSITIVE_ORDER)
+            );
+            return list;
+        }
+
+        Comparator<Player> comparator = switch (mode) {
             case "ALPHABETICAL" -> Comparator.comparing(Player::getUsername, String.CASE_INSENSITIVE_ORDER);
             case "PING" -> Comparator.comparingLong(Player::getPing);
-            case "SERVER" -> Comparator.comparing(
-                    p -> p.getCurrentServer().map(sc -> sc.getServerInfo().getName()).orElse("~"),
-                    String.CASE_INSENSITIVE_ORDER
-            );
+            case "SERVER" -> Comparator.comparing(TabListManager::serverNameOf, String.CASE_INSENSITIVE_ORDER);
             default -> null; // NONE : on garde l'ordre d'itération de Velocity
         };
         if (comparator != null) {
-            players.sort(comparator);
+            list.sort(comparator);
         }
+        return list;
     }
 
+    private boolean shouldInsertSpacer(Player viewer, List<Player> ordered, HeroTabConfig cfg) {
+        if (!cfg.sortMode.equalsIgnoreCase("SERVER_SELF_FIRST") || !cfg.groupSpacerEnabled) return false;
+        String viewerServer = serverNameOf(viewer);
+        boolean hasSelf = ordered.stream().anyMatch(p -> serverNameOf(p).equalsIgnoreCase(viewerServer));
+        boolean hasOther = ordered.stream().anyMatch(p -> !serverNameOf(p).equalsIgnoreCase(viewerServer));
+        return hasSelf && hasOther;
+    }
+
+    /** Index (dans "ordered") après lequel insérer le séparateur : la dernière entrée de TON serveur. */
+    private int computeSpacerIndex(Player viewer, List<Player> ordered) {
+        String viewerServer = serverNameOf(viewer);
+        int lastSelfIndex = -1;
+        for (int i = 0; i < ordered.size(); i++) {
+            if (serverNameOf(ordered.get(i)).equalsIgnoreCase(viewerServer)) {
+                lastSelfIndex = i;
+            } else {
+                break; // le tri place déjà tout le groupe "self" en premier
+            }
+        }
+        return lastSelfIndex;
+    }
+
+    private static String serverNameOf(Player p) {
+        return p.getCurrentServer().map(sc -> sc.getServerInfo().getName()).orElse("?");
+    }
+
+    // ── Placeholders ─────────────────────────────────────────────────────────────
+
     private String applyPlaceholders(String text, Player viewer, HeroTabConfig cfg, int totalOnline, Map<String, Integer> countsByServer) {
-        String serverName = viewer.getCurrentServer().map(sc -> sc.getServerInfo().getName()).orElse("?");
+        String serverName = serverNameOf(viewer);
         String group = cfg.serverGroups.getOrDefault(serverName, serverName);
         int serverOnline = countsByServer.getOrDefault(serverName, 0);
 
         GradeInfo grade = gradeSync != null ? gradeSync.get(viewer.getUniqueId()) : null;
         FactionInfo faction = factionSync != null ? factionSync.get(viewer.getUniqueId()) : null;
 
-        return text
+        String replaced = text
                 .replace("%player%", viewer.getUsername())
                 .replace("%server%", serverName)
                 .replace("%group%", group)
@@ -211,6 +312,17 @@ public class TabListManager {
                 .replace("%grade_prefix%", grade != null && grade.prefix() != null ? grade.prefix() : "")
                 .replace("%faction%", faction != null ? faction.factionName() : "")
                 .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "");
+
+        return replaceTheme(replaced, cfg);
+    }
+
+    /** Couleurs de décoration + adresses réseau/site, communes au header/footer et aux entrées joueurs. */
+    private String replaceTheme(String text, HeroTabConfig cfg) {
+        return text
+                .replace("%primary%", cfg.themePrimary)
+                .replace("%secondary%", cfg.themeSecondary)
+                .replace("%network_address%", cfg.networkAddress)
+                .replace("%website_address%", cfg.websiteAddress);
     }
 
     private Component parse(String text, HeroTabConfig cfg) {

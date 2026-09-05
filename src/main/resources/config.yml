@@ -16,33 +16,69 @@ update-interval-ticks: 20
 # Vitesse de l'animation pour les lignes qui contiennent plusieurs frames séparées par '||'
 animation-interval-ticks: 20
 
+# ── Thème de couleurs ────────────────────────────────────────────────────────
+# Utilisées partout via %primary% et %secondary% (header, footer, format joueur,
+# séparateur de groupe). Change juste ces deux lignes pour changer toute la
+# décoration du tab d'un coup.
+theme-primary: "&b"   # bleu
+theme-secondary: "&e" # jaune
+
+# Adresse affichée dans le footer (IP/domaine de connexion au réseau)
+network-address: "herocraft.servegame.com"
+# Adresse du site web affichée dans le footer
+website-address: "herocraft.servegame.com"
+
 # Format du nom affiché pour CHAQUE joueur dans la liste des joueurs
-# Placeholders : %player% %server% %group% %ping%
+# Placeholders : %player% %server% %group% %ping% %primary% %secondary%
 #   %grade%          -> nom du grade GradePlugin le plus prioritaire (ex: "VIP")
 #   %grade_prefix%   -> préfixe brut du grade, déjà formaté avec couleur (ex: "&6[VIP] ")
 #   %grade_color%    -> code couleur brut du grade (ex: "&6")
 #   %faction%        -> nom de la faction du joueur (vide si aucune)
 #   %faction_rank%   -> nom du rang de faction (ex: "Or")
 #   %faction_tag%    -> tag prêt à l'emploi " &7[&e★ Or - MaFaction&7]" (vide si pas de faction)
-# Nécessite d'activer grades-mysql et/ou factions-mysql ci-dessous.
-player-format: "&7[&b%server%&7] %grade_prefix%&f%player%%faction_tag%"
+#   %ping%           -> ping en ms, en valeur (ex: "42")
+# Nécessite d'activer grades-mysql et/ou factions-mysql ci-dessous pour %grade%/%faction%.
+# Le " &8•&7 " et les espaces autour de %faction_tag% servent à aérer un peu la ligne.
+player-format: "&7[%primary%%server%&7] %grade_prefix%&f%player%%faction_tag% &8•&7 %ping%ms"
 
-# Ordre d'affichage des joueurs : ALPHABETICAL, PING, SERVER, NONE
-sort-mode: "SERVER"
+# Ordre d'affichage des joueurs :
+#   ALPHABETICAL       - par pseudo
+#   PING                - par ping croissant
+#   SERVER              - regroupés par sous-serveur (ordre alphabétique des serveurs)
+#   SERVER_SELF_FIRST   - les joueurs de TON sous-serveur actuel d'abord, puis les
+#                         autres regroupés par serveur, avec un séparateur entre les
+#                         deux (voir group-spacer ci-dessous). C'est le mode par défaut :
+#                         tu vois d'abord qui joue avec toi, puis le reste du réseau.
+#   NONE                - pas de tri, ordre de connexion
+sort-mode: "SERVER_SELF_FIRST"
+
+# Ligne décorative insérée entre "ton serveur" et "les autres" en mode SERVER_SELF_FIRST
+group-spacer-enabled: true
+group-spacer-text: "%secondary%&m▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
 
 # En-tête du tab (une ligne = un élément de la liste, plusieurs lignes possibles)
+# Une ligne vide "" crée un peu d'espace entre les blocs.
 # Placeholders : %player% %server% %group% %ping% %online% %server_online% %max%
+#                %primary% %secondary% %network_address% %website_address%
 #   %online%        -> total de joueurs sur TOUT le réseau (tous sous-serveurs confondus)
 #   %server_online% -> joueurs uniquement sur le sous-serveur actuel du joueur qui regarde
 # Exemple de ligne animée : "&b&lHeroCraft||&3&lHeroCraft||&9&lHeroCraft"
 header:
-  - "&b&lHeroCraft &7- &fLe réseau"
-  - "&7Réseau : &b%online%&7/&b%max% &8| &7Ici : &b%server_online%"
+  - "%primary%&m                                        "
+  - ""
+  - "%primary%&lHeroCraft %secondary%&l• %primary%Le réseau"
+  - "&7Réseau : %primary%%online%&7/%primary%%max% &8| &7Ici : %secondary%%server_online%"
+  - ""
+  - "%primary%&m                                        "
 
 # Pied de page du tab
 footer:
-  - "&7www.herocraft.example"
-  - "&7Serveur actuel : &b%server%"
+  - "%secondary%&m                                        "
+  - ""
+  - "&7Serveur : %primary%%network_address%"
+  - "&7Site : %primary%%website_address%"
+  - ""
+  - "%secondary%&m                                        "
 
 # Autorise les balises MiniMessage (<red>, <bold>, <gradient:...>...) sur les lignes qui en contiennent
 allow-minimessage: true
