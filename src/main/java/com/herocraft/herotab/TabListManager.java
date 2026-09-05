@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Construit et pousse le header/footer + les noms/l'ordre affichés dans le
@@ -41,6 +42,14 @@ import java.util.UUID;
  * retirer puis ré-ajouter les entrées dans l'ordre voulu (Velocity respecte
  * alors l'ordre d'insertion). On récupère le profil/gamemode d'origine avant
  * de retirer une entrée pour ne pas perdre son skin dans le tab.
+ *
+ * IMPORTANT : on ne fait ce retrait/ré-ajout QUE quand l'ordre a réellement
+ * changé (arrivée, départ, changement de serveur) — on compare à
+ * `lastOrderPerViewer`. Sinon on se contente de patcher le nom affiché/ping
+ * sur les entrées déjà en place. Le faire à CHAQUE cycle (comme dans une
+ * version précédente) empêche le client de finir de charger les textures de
+ * skin externes (SkinRestorer, Bedrock...) puisque l'entrée est détruite et
+ * recréée avant que le rendu n'ait le temps de se stabiliser.
  */
 public class TabListManager {
 
@@ -54,6 +63,11 @@ public class TabListManager {
 
     private volatile GradeSync gradeSync;
     private volatile FactionSync factionSync;
+
+    /** Dernier ordre appliqué pour chaque viewer (uuid des joueurs, + SPACER_UUID s'il y a un séparateur). */
+    private final Map<UUID, List<UUID>> lastOrderPerViewer = new ConcurrentHashMap<>();
+    /** Dernier profil "complet" (avec skin) vu pour chaque joueur, en secours si une entrée doit être recréée. */
+    private final Map<UUID, GameProfile> knownGoodProfiles = new ConcurrentHashMap<>();
 
     private final LegacyComponentSerializer legacy = LegacyComponentSerializer.builder()
             .character('&')
@@ -88,6 +102,8 @@ public class TabListManager {
 
     @Subscribe
     public void onDisconnect(DisconnectEvent event) {
+        lastOrderPerViewer.remove(event.getPlayer().getUniqueId());
+        knownGoodProfiles.remove(event.getPlayer().getUniqueId());
         // Léger délai pour laisser Velocity retirer le joueur de sa liste interne avant de rafraîchir.
         server.getScheduler().buildTask(plugin, this::updateAll)
                 .delay(java.time.Duration.ofMillis(150))
@@ -148,17 +164,43 @@ public class TabListManager {
     private void updateEntries(Player viewer, HeroTabConfig cfg, List<Player> online) {
         TabList tabList = viewer.getTabList();
 
-        // On garde le profil/gamemode d'origine de chaque entrée (skin, icône de mode de jeu)
-        // pour ne rien perdre visuellement en les recréant dans le bon ordre.
+        List<Player> ordered = buildOrder(viewer, online, cfg);
+        int spacerAfterIndex = shouldInsertSpacer(viewer, ordered, cfg) ? computeSpacerIndex(viewer, ordered) : -1;
+
+        List<UUID> newOrderKey = new ArrayList<>(ordered.size() + 1);
+        for (int i = 0; i < ordered.size(); i++) {
+            newOrderKey.add(ordered.get(i).getUniqueId());
+            if (i == spacerAfterIndex) newOrderKey.add(SPACER_UUID);
+        }
+
+        List<UUID> previousOrderKey = lastOrderPerViewer.get(viewer.getUniqueId());
+        boolean orderChanged = previousOrderKey == null || !previousOrderKey.equals(newOrderKey);
+
+        if (!orderChanged) {
+            // Chemin rapide et sans risque pour les skins : on patche juste le texte/ping
+            // sur les entrées déjà en place, sans jamais les retirer ni les recréer.
+            for (Player target : ordered) {
+                tabList.getEntry(target.getUniqueId()).ifPresent(entry -> {
+                    entry.setDisplayName(parse(formatPlayerEntry(viewer, target, cfg), cfg));
+                    entry.setLatency((int) Math.max(0, target.getPing()));
+                });
+            }
+            return;
+        }
+
+        // L'ordre a changé (arrivée/départ/changement de serveur) : on doit vraiment
+        // retirer puis ré-ajouter dans le bon ordre. On récupère d'abord le profil
+        // (avec skin) de chaque entrée existante pour ne rien perdre visuellement.
         Map<UUID, TabListEntry> existing = new HashMap<>();
         for (TabListEntry e : tabList.getEntries()) {
             existing.put(e.getProfile().getId(), e);
         }
+        for (TabListEntry e : existing.values()) {
+            if (!e.getProfile().getProperties().isEmpty()) {
+                knownGoodProfiles.put(e.getProfile().getId(), e.getProfile());
+            }
+        }
 
-        List<Player> ordered = buildOrder(viewer, online, cfg);
-        int spacerAfterIndex = shouldInsertSpacer(viewer, ordered, cfg) ? computeSpacerIndex(viewer, ordered) : -1;
-
-        // On retire d'abord tout ce qu'on gère, pour pouvoir tout ré-ajouter dans le bon ordre.
         for (Player target : online) {
             tabList.removeEntry(target.getUniqueId());
         }
@@ -168,9 +210,11 @@ public class TabListManager {
             Player target = ordered.get(i);
             TabListEntry old = existing.get(target.getUniqueId());
             int gameMode = old != null ? old.getGameMode() : 0;
-            GameProfile profile = old != null ? old.getProfile() : new GameProfile(target.getUniqueId(), target.getUsername(), List.of());
+            GameProfile profile = old != null ? old.getProfile()
+                    : knownGoodProfiles.getOrDefault(target.getUniqueId(),
+                        new GameProfile(target.getUniqueId(), target.getUsername(), List.of()));
 
-            Component displayName = parse(formatPlayerEntry(target, cfg), cfg);
+            Component displayName = parse(formatPlayerEntry(viewer, target, cfg), cfg);
 
             try {
                 tabList.addEntry(TabListEntry.builder()
@@ -198,15 +242,22 @@ public class TabListManager {
                 }
             }
         }
+
+        lastOrderPerViewer.put(viewer.getUniqueId(), newOrderKey);
     }
 
-    private String formatPlayerEntry(Player target, HeroTabConfig cfg) {
+    private String formatPlayerEntry(Player viewer, Player target, HeroTabConfig cfg) {
         String serverName = serverNameOf(target);
         String group = cfg.serverGroups.getOrDefault(serverName, serverName);
         long ping = target.getPing();
 
         GradeInfo grade = gradeSync != null ? gradeSync.get(target.getUniqueId()) : null;
-        FactionInfo faction = factionSync != null ? factionSync.get(target.getUniqueId()) : null;
+
+        // La faction n'est affichée que si le joueur qui REGARDE le tab est
+        // lui-même sur le serveur Factions — ailleurs sur le réseau, ces
+        // placeholders restent vides, même si la cible a bien une faction.
+        boolean viewerOnFactionsServer = serverNameOf(viewer).equalsIgnoreCase(cfg.factionsServerName);
+        FactionInfo faction = (viewerOnFactionsServer && factionSync != null) ? factionSync.get(target.getUniqueId()) : null;
 
         String text = cfg.playerFormat
                 .replace("%player%", target.getUsername())

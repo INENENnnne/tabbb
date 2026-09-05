@@ -28,6 +28,12 @@ network-address: "herocraft.servegame.com"
 # Adresse du site web affichée dans le footer
 website-address: "herocraft.servegame.com"
 
+# Nom EXACT (id backend, celui déclaré dans velocity.toml) du serveur Factions.
+# %faction%, %faction_rank% et %faction_tag% ne s'affichent que pour les
+# joueurs qui regardent le tab depuis CE serveur — invisibles partout ailleurs
+# sur le réseau, même si un autre joueur affiché a bien une faction.
+factions-server-name: "factions"
+
 # Format du nom affiché pour CHAQUE joueur dans la liste des joueurs
 # Placeholders : %player% %server% %group% %ping% %primary% %secondary%
 #   %grade%          -> nom du grade GradePlugin le plus prioritaire (ex: "VIP")
