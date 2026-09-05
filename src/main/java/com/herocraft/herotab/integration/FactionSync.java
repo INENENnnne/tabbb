@@ -49,6 +49,13 @@ public class FactionSync {
         if (!cfg.enabled) return;
 
         Map<UUID, FactionInfo> next = new HashMap<>();
+        try {
+            JdbcDriverLoader.ensureLoaded();
+        } catch (ClassNotFoundException e) {
+            logger.warn("[FactionSync] Driver MySQL introuvable dans le jar (mysql-connector-j) : {}", e.getMessage());
+            return;
+        }
+
         try (Connection conn = DriverManager.getConnection(cfg.jdbcUrl(), cfg.user, cfg.password);
              PreparedStatement ps = conn.prepareStatement(QUERY);
              ResultSet rs = ps.executeQuery()) {

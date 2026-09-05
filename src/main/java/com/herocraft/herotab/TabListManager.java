@@ -170,7 +170,7 @@ public class TabListManager {
             int gameMode = old != null ? old.getGameMode() : 0;
             GameProfile profile = old != null ? old.getProfile() : new GameProfile(target.getUniqueId(), target.getUsername(), List.of());
 
-            Component displayName = parse(formatPlayerEntry(target, cfg), cfg);
+            Component displayName = parse(formatPlayerEntry(viewer, target, cfg), cfg);
 
             try {
                 tabList.addEntry(TabListEntry.builder()
@@ -200,13 +200,18 @@ public class TabListManager {
         }
     }
 
-    private String formatPlayerEntry(Player target, HeroTabConfig cfg) {
+    private String formatPlayerEntry(Player viewer, Player target, HeroTabConfig cfg) {
         String serverName = serverNameOf(target);
         String group = cfg.serverGroups.getOrDefault(serverName, serverName);
         long ping = target.getPing();
 
         GradeInfo grade = gradeSync != null ? gradeSync.get(target.getUniqueId()) : null;
-        FactionInfo faction = factionSync != null ? factionSync.get(target.getUniqueId()) : null;
+
+        // La faction n'est affichée que si le joueur qui REGARDE le tab est
+        // lui-même sur le serveur Factions — ailleurs sur le réseau, ces
+        // placeholders restent vides, même si la cible a bien une faction.
+        boolean viewerOnFactionsServer = serverNameOf(viewer).equalsIgnoreCase(cfg.factionsServerName);
+        FactionInfo faction = (viewerOnFactionsServer && factionSync != null) ? factionSync.get(target.getUniqueId()) : null;
 
         String text = cfg.playerFormat
                 .replace("%player%", target.getUsername())
@@ -310,8 +315,11 @@ public class TabListManager {
                 .replace("%server_online%", String.valueOf(serverOnline))
                 .replace("%grade%", grade != null && grade.displayName() != null ? grade.displayName() : "")
                 .replace("%grade_prefix%", grade != null && grade.prefix() != null ? grade.prefix() : "")
+                .replace("%grade_suffix%", grade != null && grade.suffix() != null ? grade.suffix() : "")
+                .replace("%grade_color%", grade != null && grade.color() != null ? grade.color() : "&f")
                 .replace("%faction%", faction != null ? faction.factionName() : "")
-                .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "");
+                .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "")
+                .replace("%faction_tag%", buildFactionTag(faction));
 
         return replaceTheme(replaced, cfg);
     }
