@@ -310,8 +310,11 @@ public class TabListManager {
                 .replace("%server_online%", String.valueOf(serverOnline))
                 .replace("%grade%", grade != null && grade.displayName() != null ? grade.displayName() : "")
                 .replace("%grade_prefix%", grade != null && grade.prefix() != null ? grade.prefix() : "")
+                .replace("%grade_suffix%", grade != null && grade.suffix() != null ? grade.suffix() : "")
+                .replace("%grade_color%", grade != null && grade.color() != null ? grade.color() : "&f")
                 .replace("%faction%", faction != null ? faction.factionName() : "")
-                .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "");
+                .replace("%faction_rank%", faction != null && faction.rankName() != null ? faction.rankName() : "")
+                .replace("%faction_tag%", buildFactionTag(faction));
 
         return replaceTheme(replaced, cfg);
     }

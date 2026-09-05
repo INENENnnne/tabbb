@@ -1,5 +1,7 @@
 # 🎮 HeroTab
 
+> **Version actuelle : 1.4.0** — placeholders de grade/faction étendus au header & footer, sources republiées à jour. [Voir les nouveautés](#-nouveautés) · [Télécharger la release](https://github.com/INENENnnne/tabbb/releases/latest)
+
 **Tab list unifié et personnalisable pour tout le réseau HeroCraft (proxy Velocity.)**
 
 HeroTab est un plugin pour **Velocity 3.3+** qui remplace le tab (liste de joueurs, header et footer) de **tous** les joueurs connectés au proxy — quel que soit le sous-serveur ou le monde sur lequel ils se trouvent. **Une seule installation sur le proxy suffit** : plus rien à installer ni à configurer sur chaque serveur de jeu. Le résultat est une expérience cohérente et soignée sur tout le réseau..
@@ -135,7 +137,7 @@ server-groups:
 | `%max%` | Nombre maximal de joueurs autorisé par la config du proxy |
 | `%network_address%` | IP/domaine de connexion au réseau (`network-address`) |
 | `%website_address%` | Adresse du site web (`website-address`) |
-| `%grade%`, `%grade_prefix%`, `%faction%`, `%faction_rank%` | Disponibles aussi dans le header/footer |
+| `%grade%`, `%grade_prefix%`, `%grade_suffix%`, `%grade_color%`, `%faction%`, `%faction_rank%`, `%faction_tag%` | Disponibles aussi dans le header/footer |
 
 ### Commandes
 
@@ -147,7 +149,18 @@ server-groups:
 
 ## 🧩 Nouveautés
 
-### Version 1.2.0 — Tri réel, séparateur de groupe & thème de couleurs
+### Version 1.4.0 — Placeholders étendus, publication des sources à jour
+- 🏷️ **`%grade_suffix%` et `%grade_color%` dans le header/footer** : le suffixe et la couleur du grade le plus prioritaire sont désormais disponibles dans l'en-tête et le pied de page, en plus du nom (`%grade%`) et du préfixe (`%grade_prefix%`) déjà supportés..
+- ⚔️ **`%faction_tag%` dans le header/footer** : le tag de faction prêt à l'emploi (`&7[&e★ Or - MaFaction&7]`) peut maintenant s'afficher aussi dans l'en-tête et le pied de page, pas seulement dans le format joueur..
+- 🔄 **Parité complète des placeholders** : les placeholders de grade et de faction se comportent désormais de la même façon partout— `player-format`, header et footer accepts les mêmes variables pour une composition libre du tab..
+- 📦 **Publication republiée** : le `.jar` compilé (shadé) et le code source complet sont régénérés et attachés à cette release pour une traçabilité parfaite..
+
+### Version 1.3.0 — Correctif du driver MySQL (connexions grades/factions fiabilisées)
+- 🐛 **Correctif « No suitable driver found »** : sur Velocity, chaque plugin vit dans son propre classloader isolé— le mécanisme automatique de découverte du driver JDBC (utilisé en interne par `DriverManager` n'arrivait pas toujours à charger `mysql-connector-j` depuis une tâche planifiée du proxy, ce qui cassait les intégrations GradePlugin/FactionPlugin dès que l'on les activait..
+- ⚙️ **Chargement explicite du driver** : nouvelle classe interne `JdbcDriverLoader` qui force le chargement du driver MySQL une fois pour toutes avant toute connexion— le bloc statique du driver s'enregistre alors durablement auprès de `DriverManager`..
+- ✅ **GradeSync & FactionSync sécurisés** : si le driver ne peut toujours pas être chargé, le cache existant est conservé et un avertissement clair est journalisé plutôt qu'une exception silencieuse— plus de spam de stacktrace ni de tab qui se fige..
+
+### Version 1.2.0 — Tri réel, séparateur de groupe& thème de couleurs
 - 🏠 **Ton serveur d'abord** : nouveau mode de tri `SERVER_SELF_FIRST`, activé par défaut— chaque joueur voit d'abord les joueurs de **son** sous-serveur, puis les autres groupés par serveur..
 - ➖ **Séparateur de groupe** : en mode `SERVER_SELF_FIRST`, une ligne décorative (`group-spacer-text`, désactivable avec `group-spacer-enabled`) sépare « ton serveur » des « autres »..
 - 🔀 **Vrai réordonnancement du tab** : le protocole Minecraft n'ayant pas de notion de « position », HeroTab retire puis ré-ajoute les entrées du tab dans l'ordre voulu— en **conservant le skin et le mode de jeu** de chaque joueur (profil original réutilisé)..
