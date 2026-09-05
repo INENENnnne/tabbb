@@ -18,7 +18,14 @@ animation-interval-ticks: 20
 
 # Format du nom affiché pour CHAQUE joueur dans la liste des joueurs
 # Placeholders : %player% %server% %group% %ping%
-player-format: "&7[&b%server%&7] &f%player%"
+#   %grade%          -> nom du grade GradePlugin le plus prioritaire (ex: "VIP")
+#   %grade_prefix%   -> préfixe brut du grade, déjà formaté avec couleur (ex: "&6[VIP] ")
+#   %grade_color%    -> code couleur brut du grade (ex: "&6")
+#   %faction%        -> nom de la faction du joueur (vide si aucune)
+#   %faction_rank%   -> nom du rang de faction (ex: "Or")
+#   %faction_tag%    -> tag prêt à l'emploi " &7[&e★ Or - MaFaction&7]" (vide si pas de faction)
+# Nécessite d'activer grades-mysql et/ou factions-mysql ci-dessous.
+player-format: "&7[&b%server%&7] %grade_prefix%&f%player%%faction_tag%"
 
 # Ordre d'affichage des joueurs : ALPHABETICAL, PING, SERVER, NONE
 sort-mode: "SERVER"
@@ -39,6 +46,35 @@ footer:
 
 # Autorise les balises MiniMessage (<red>, <bold>, <gradient:...>...) sur les lignes qui en contiennent
 allow-minimessage: true
+
+# ==========================================================
+#  Intégration GradePlugin — lecture directe de sa base MySQL
+#  (grades_db par défaut). Mêmes identifiants que dans le
+#  config.yml de GradePlugin sur tes serveurs Paper.
+# ==========================================================
+grades-mysql:
+  enabled: false
+  host: "127.0.0.1"
+  port: 3306
+  database: "grades_db"
+  user: "grades_user"
+  password: "mot-de-passe"
+  # Intervalle entre deux relectures complètes de la base, en secondes
+  refresh-interval-seconds: 15
+
+# ==========================================================
+#  Intégration FactionPlugin — lecture de la table
+#  faction_tab_sync (créée automatiquement par la classe
+#  FactionTabSync du plugin) dans sa base "herocraft".
+# ==========================================================
+factions-mysql:
+  enabled: false
+  host: "127.0.0.1"
+  port: 3306
+  database: "herocraft"
+  user: "herocraft_user"
+  password: "mot-de-passe"
+  refresh-interval-seconds: 15
 
 # Regroupe plusieurs sous-serveurs sous un même nom affiché (utile pour %group%)
 # ex: si tu as bedwars1, bedwars2, bedwars3 -> tous affichés "BedWars"
